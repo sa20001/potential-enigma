@@ -1,46 +1,6 @@
-# import os
-# from enum import Enum
-
-# # ANSI color codes
-# class Colors(Enum):
-#     DEBUG = "\033[34m"      # Blue
-#     INFO ="\033[32m"        # Green
-#     ERROR = "\033[31m"      # Red
-#     WARNING = "\033[33m"    # Yellow
-#     # RESET = "\033[0m",      # Reset to default color
-
-# class LogType(Enum):
-#     DEBUG = "DEBUG"
-#     INFO = "INFO"
-#     ERROR = "ERROR"
-#     WARNING = "WARNING"
-
-# DEBUG = True  # Set to False for release builds
-# parent_pid = 1
-
-# # TODO: create a class, because this is terrible
-
-# def print_function(log_type: LogType, message, pid, color : Colors):
-#     if pid == parent_pid:
-#         print(f"{color.value}[{log_type.value}]\033[0m - Parent: {message}")
-#     else:
-#         print(f"{color.value}[{log_type.value}]\033[0m - Child {pid}: {message}")
-
-# def log(log_type: LogType, message: str, pid: int):
-#     if log_type == LogType.DEBUG and DEBUG:
-#         print_function(LogType.DEBUG, message, pid, Colors.DEBUG)
-#     elif log_type == LogType.INFO:
-#         print_function(LogType.INFO, message, pid, Colors.INFO)
-#     elif log_type == LogType.ERROR:
-#         print_function(LogType.ERROR, message, pid, Colors.ERROR)
-#     elif log_type == LogType.WARNING:
-#         print_function(LogType.WARNING, message, pid, Colors.WARNING)
-
-# def logInit(pid:int):
-#     parent_pid = pid
-
 import os
 from enum import Enum
+import config
 
 # ANSI color codes
 class Colors(Enum):
@@ -56,11 +16,8 @@ class LogType(Enum):
     ERROR = "ERROR"
     WARNING = "WARNING"
 
-DEBUG = False  # Set to False for release builds
 
 class Logger:
-    # def __init__(self);
-    #     return
 
     @staticmethod
     def print_function(log_type: LogType, message: str, pid: int, color: Colors):
@@ -74,11 +31,11 @@ class Logger:
 
     @staticmethod
     def log(log_type: LogType, message: str):
-        pid = os.getpid()
+        pid = os.getpid() # TODO can be moved in print_function
         # print(pid)
         # print(parent_pid)
-        # Log based on the log_type and the PID
-        if log_type == LogType.DEBUG and DEBUG:
+        # Log based on the log_type
+        if log_type == LogType.DEBUG and config.DEBUG:
             Logger.print_function(log_type, message, pid, Colors.DEBUG)
         elif log_type == LogType.INFO:
             Logger.print_function(log_type, message, pid, Colors.INFO)
@@ -89,7 +46,7 @@ class Logger:
 
 
 
-# # Usage Example
+# # Usage Example # TODO update them
 # logger = Logger(pid=os.getpid())  # Instantiate with the current process PID
 # logger.log(LogType.DEBUG, "This is a debug message")  # Log as parent process
 # logger.log(LogType.INFO, "This is an info message")   # Log as parent process
