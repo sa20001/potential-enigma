@@ -1,38 +1,16 @@
-
-import win32api
-import win32file
+import traceback
+import os
+import shutil
 import ctypes
 import time
 import multiprocessing
-import os
-import sys
-import traceback
-import shutil
+import win32api
 
-from customPrint import Logger, LogType
 import config
-from copyManager import copy_with_progress, metadata_checksum
-from cleanupManager import CleanupManager
-
-
-def list_dvd_reader_windows():
-    dvd_drives = []
-    drive_types = {
-        2: "Removable",
-        3: "Fixed",
-        4: "Network",
-        5: "CD/DVD",
-        6: "RAM Disk",
-    }
-
-    drives = win32api.GetLogicalDriveStrings().split("\x00")
-    for drive in drives:
-        if drive:
-            drive_type = win32file.GetDriveType(drive)
-            if drive_types.get(drive_type) == "CD/DVD":
-                dvd_drives.append(drive)
-    return dvd_drives
-
+from utils.copyManager import copy_with_progress, metadata_checksum
+from utils.cleanupManager import CleanupManager, cleanup
+from utils.logger import Logger, LogType
+import utils.utilities as utility
 
 
 # Create locks
@@ -44,7 +22,7 @@ checksumList = [] # TODO: check if this is shared across processes and check thr
 commitedSpace = multiprocessing.Value("L", 0) # i=integer singed, L long unsigned
 
 
-def child_process(dvd, workerIndex):
+def child_process(dvd, workerIndex, logPath):
     pid = os.getpid()
     Logger.log(LogType.DEBUG, f"Child with pid {pid} started")
     Logger.log(LogType.INFO, "Warming up, it will take some time")
@@ -58,50 +36,7 @@ def child_process(dvd, workerIndex):
         Logger.log(LogType.INFO, f"Child {multiprocessing.current_process().name} finished.")
 
 
-def cleanup(path: str):
-    print("Clean up task")
-    # TODO not working always
-    if path is not None:
-        Logger.log(LogType.INFO, f"Cleanup, deleting incomplete folder: \"{path}\"")
-        shutil.rmtree(path)
-
-def get_free_space(path):
-    """
-    Get the remaining free disk space for the given path.
-    :param path: Path to check (e.g., a directory or drive)
-    :return: Free space in bytes
-    """
-    free = shutil.disk_usage(path)[2] 
-    return free
-
-# # Example usage
-# path = "D:\\"
-# free_space = get_free_space(path)
-# print(f"Free space on {path}: {free_space / (1024**3):.2f} GB")
-
-def get_directory_size(directory):
-    """
-    Calculate the total size of a directory, including all subdirectories and files.
-    :param directory: Path to the directory
-    :return: Total size in bytes
-    """
-    total_size = 0
-    for dirpath, _, filenames in os.walk(directory):
-        for file in filenames:
-            file_path = os.path.join(dirpath, file)
-            # Skip inaccessible files
-            try:
-                total_size += os.path.getsize(file_path)
-            except OSError:
-                pass
-    return total_size
-
-# # Example usage
-# path = "G:\\"
-# directory_size = get_directory_size(path)
-# print(f"Total size of {path}: {directory_size / (1024 ** 3):.2f} GB")
-
-def worker_function(dvd, workerIndex):
+def worker_function(dvd, workerIndex, logPath):
         # while True:
         #     continue
         aliasDefined = False
@@ -170,8 +105,8 @@ def worker_function(dvd, workerIndex):
 
 
 
-            dvdSize = get_directory_size(dvd)
-            freeSpace = get_free_space(config.destinationFolder)
+            dvdSize = utility.get_directory_size(dvd)
+            freeSpace = utility.get_free_space(config.destinationFolder)
 
             with commitedSpace.get_lock():  # Lock for thread-safe updates
                 Logger.log(LogType.DEBUG, f"Commited space before {commitedSpace.value}")
@@ -246,74 +181,3 @@ def worker_function(dvd, workerIndex):
             # # Close dvd tray
             # error = ctypes.windll.WINMM.mciSendStringW("set drive door closed", None, 0, None)
             # if (error != 0): print(error)
-
-
-# Get the current local time
-current_time = time.localtime()
-# Format the time in a readable way (e.g., hour:minute:second)
-formatted_time = time.strftime("%H:%M:%S", current_time).replace(':', '_')
-logPath = os.path.normpath(os.path.join(config.log_folder_path, f"failed_{formatted_time}.txt"))
-def main():
-
-    dvdReader = list_dvd_reader_windows()
-    dvdsCount = len(dvdReader)
-    
-    if dvdReader:
-        Logger.log(LogType.INFO, f"Found {dvdsCount} DVDs:")
-        for dvd in dvdReader:
-            Logger.log(LogType.INFO, dvd)
-    else:
-        Logger.log(LogType.INFO, "No DVDs found.")
-
-    if dvdsCount == 0:
-        return
-    elif dvdsCount != 1:
-        Logger.log(LogType.INFO, f"Creating {dvdsCount} processes")
-    else:
-        Logger.log(LogType.INFO,f"Creating {dvdsCount} process")
-    
-    # Create the folder if it doesn't exist
-    os.makedirs(config.log_folder_path, exist_ok=True)
-    # Create failed.txt for monitoring failed copies
-    with open(f'{logPath}', 'a') as file:
-        # Append a string to the file
-        file.write(f'The followings copies failed:\n')
-    
-    processList = []
-    # Creating and starting processes
-    count=1
-    for index, dvd in enumerate(dvdReader):
-        process = multiprocessing.Process(target=child_process, args=(dvd,index))
-        processList.append(process)
-        process.start()
-        count+=1
-           
-
-    try:
-        # Joining processes
-        for process in processList:
-            process.join()
-        
-        Logger.log(LogType.INFO , "All child processes have finished.")
-
-    except KeyboardInterrupt:
-        Logger.log( LogType.WARNING,"Parent process received a keyboard interrupt.")
-        Logger.log( LogType.WARNING,"Killing the child processes, it will take some time... please wait")
-        # When parent gets KeyboardInterrupt, terminate all children
-        for p in processList:
-            p.terminate()  # This will terminate the child processes
-            p.join()  # Wait for each child to terminate
-        Logger.log(LogType.WARNING ,"All child processes have been terminated due to parent interrupt.")
-
-    finally:
-        Logger.log(LogType.INFO,"Parent process terminating...")
-        # TODO add cleanup tasks
-
-    return 0  # 0 = Success
-
-
-if __name__ == "__main__":
-     code = main()
-     print(f"Code execution finished with code: {code}")
-     sys.exit(code)
-    

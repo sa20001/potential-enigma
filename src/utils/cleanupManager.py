@@ -1,5 +1,7 @@
 import atexit
 import time
+from utils.logger import Logger, LogType
+import shutil
 
 class CleanupManager:
     def __init__(self):
@@ -19,10 +21,14 @@ class CleanupManager:
             func, args, kwargs = self.registry[-1]  # Get the latest entry
             func(*args, **kwargs)
 
+
+def cleanup(path: str):
+    print("Clean up task")
+    # TODO not working always
+    if path is not None:
+        Logger.log(LogType.INFO, f"Cleanup, deleting incomplete folder: \"{path}\"")
+        shutil.rmtree(path)
+
 # # Example usage
 # manager = CleanupManager()
-
-# def cleanup(resource_name):
-#     print(f"Cleaning up: {resource_name}")
-
 # manager.register(cleanup, "New Registration")

@@ -1,7 +1,7 @@
 import os
 from tqdm import tqdm
 import hashlib
-from customPrint import Logger, LogType
+from utils.logger import Logger, LogType
 
 # TODO: create a class
 
